@@ -24,8 +24,7 @@
       "ts",
       "tsx",
       "json",
-      "node",
-      "graphql"
+      "node"
     ],
     "verbose": false
   },
