@@ -24,8 +24,7 @@
       "ts",
       "tsx",
       "json",
-      "node",
-      "graphql"
+      "node"
     ],
     "verbose": false
   },
@@ -40,11 +39,11 @@
   },
   "homepage": "https://github.com/lunascape/type-redux#readme",
   "dependencies": {
-    "jest": "^24.5.0",
     "redux": "^4.0.1"
   },
   "devDependencies": {
     "@types/jest": "^24.0.11",
+    "jest": "^24.5.0",
     "ts-jest": "^24.0.0",
     "tslint": "^5.14.0",
     "typescript": "^3.3.3333"
