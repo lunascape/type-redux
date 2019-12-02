@@ -76,6 +76,7 @@ export interface TypeAsyncActionCreator<Type, Args, Payload, State> {
   reducer<State>(reducer: (state: State, action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>) => Partial<State>): TypePartialReducer<Type, Payload, State>;
   pending<State>(reducer: (state: State, args: Args) => Partial<State>): TypePartialReducer<typeof PENDING_TYPE, Payload, State>;
   isPending<State>(state: State): boolean;
+  callingCount<State>(state: State): number;
   elapseTime<State>(state: State): number;
 }
 
@@ -85,6 +86,7 @@ export interface TypeStatefulActionCreator<Type, Args, Payload, State> {
   reducer<State>(reducer: (state: State, action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>) => Partial<State>): TypePartialReducer<Type, Payload, State>;
   pending<State>(reducer: (state: State, args: Args) => Partial<State>): TypePartialReducer<typeof PENDING_TYPE, Payload, State>;
   isPending<State>(state: State): boolean;
+  callingCount<State>(state: State): number;
   elapseTime<State>(state: State): number;
 }
 
@@ -311,6 +313,13 @@ export const typePendingReducerSet = {
 
 export function isPending<Type = string>(type: Type, state: any): boolean {
   return !!(state[REDUX_TYPE].pendings && state[REDUX_TYPE].pendings[type]);
+}
+
+export function callingCount<Type = string>(type: Type, state: any): number {
+  if (state[REDUX_TYPE].pendings) {
+    return state[REDUX_TYPE].pendings[type] || 0;
+  }
+  return 0;
 }
 
 export function elapseTime<Type = string>(type: Type, state: any): number {
