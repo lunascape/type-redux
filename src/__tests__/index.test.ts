@@ -89,6 +89,28 @@ describe('redux-utils', () => {
       expect(mock).toHaveBeenCalledTimes(1);
     });
 
+    it('action callingCount', async () => {
+      const testAction = createTypeAsyncAction('PIYO_ACTION', () =>
+        new Promise((resolve) => setTimeout(resolve, 100000)));
+      const mock = jest.fn((state) => state);
+      const testReducer = createTypeReducer({}, testAction.reducer(mock));
+      const reducer = combineReducers({
+        ...typePendingReducerSet,
+        test: testReducer,
+      });
+      const store = createStore(reducer, {}, applyMiddleware(typeReduxMiddleware));
+      const promise1 = store.dispatch(testAction());
+      const promise2 = store.dispatch(testAction());
+      const promise3 = store.dispatch(testAction());
+      expect(testAction.callingCount(store.getState())).toEqual(3);
+      jest.runAllTimers();
+      await promise1;
+      await promise2;
+      await promise3;
+      expect(testAction.callingCount(store.getState())).toEqual(0);
+      expect(mock).toHaveBeenCalledTimes(3);
+    });
+
     it('global isPending', async () => {
       const promise = new Promise((resolve) => setTimeout(resolve, 100000));
       const testAction = createTypeAsyncAction('PIYO_ACTION', () => promise);

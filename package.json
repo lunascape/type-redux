@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "node ./node_modules/typescript/bin/tsc",
+    "prepare": "yarn build",
     "test": "jest",
     "clean": "rm -rf dist"
   },

@@ -73,6 +73,7 @@ export interface TypeAsyncActionCreator<Type, Args, Payload, State> {
   reducer<State>(reducer: (state: State, action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>) => Partial<State>): TypePartialReducer<Type, Payload, State>;
   pending<State>(reducer: (state: State, args: Args) => Partial<State>): TypePartialReducer<typeof PENDING_TYPE, Payload, State>;
   isPending<State>(state: State): boolean;
+  callingCount<State>(state: State): number;
 }
 
 export interface TypeStatefulActionCreator<Type, Args, Payload, State> {
@@ -81,6 +82,7 @@ export interface TypeStatefulActionCreator<Type, Args, Payload, State> {
   reducer<State>(reducer: (state: State, action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>) => Partial<State>): TypePartialReducer<Type, Payload, State>;
   pending<State>(reducer: (state: State, args: Args) => Partial<State>): TypePartialReducer<typeof PENDING_TYPE, Payload, State>;
   isPending<State>(state: State): boolean;
+  callingCount<State>(state: State): number;
 }
 
 export function createTypeAction<Type extends string, Args, Payload = Args>(
@@ -135,6 +137,7 @@ export function createTypeAsyncAction<Type extends string, Args, Payload, State>
     return typeReducer;
   };
   actionCreator.isPending = (state: any) => isPending(type, state);
+  actionCreator.callingCount = (state: any) => callingCount(type, state);
   return actionCreator;
 }
 
@@ -176,6 +179,7 @@ export function createTypeStatefulAction<Type extends string, Args, Payload, Sta
     return typeReducer;
   };
   actionCreator.isPending = (state: any) => isPending(type, state);
+  actionCreator.callingCount = (state: any) => callingCount(type, state);
   return actionCreator;
 }
 
@@ -275,6 +279,13 @@ export const typePendingReducerSet = {
 
 export function isPending<Type = string>(type: Type, state: any): boolean {
   return !!(state[REDUX_TYPE].pendings && state[REDUX_TYPE].pendings[type]);
+}
+
+export function callingCount<Type = string>(type: Type, state: any): number {
+  if (state[REDUX_TYPE].pendings) {
+    return state[REDUX_TYPE].pendings[type] || 0;
+  }
+  return 0;
 }
 
 export function createTypeReduxInitialState(): TypeReduxPendingState {
