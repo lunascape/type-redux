@@ -57,6 +57,7 @@ export interface TypeAsyncActionCreator<Type, Args, Payload, State> {
     reducer<State>(reducer: (state: State, action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>) => Partial<State>): TypePartialReducer<Type, Payload, State>;
     pending<State>(reducer: (state: State, args: Args) => Partial<State>): TypePartialReducer<typeof PENDING_TYPE, Payload, State>;
     isPending<State>(state: State): boolean;
+    callingCount<State>(state: State): number;
 }
 export interface TypeStatefulActionCreator<Type, Args, Payload, State> {
     (args: Args): TypeStatefulAction<Type, Args, Payload, State>;
@@ -64,6 +65,7 @@ export interface TypeStatefulActionCreator<Type, Args, Payload, State> {
     reducer<State>(reducer: (state: State, action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>) => Partial<State>): TypePartialReducer<Type, Payload, State>;
     pending<State>(reducer: (state: State, args: Args) => Partial<State>): TypePartialReducer<typeof PENDING_TYPE, Payload, State>;
     isPending<State>(state: State): boolean;
+    callingCount<State>(state: State): number;
 }
 export declare function createTypeAction<Type extends string, Args, Payload = Args>(type: Type, payloadCreator: (args: Args) => Payload): TypeActionCreator<Type, Args, Payload>;
 export declare function createTypeAsyncAction<Type extends string, Args, Payload, State>(type: Type, payloadCreator: (args: Args, state: State) => Promise<Payload>): TypeAsyncActionCreator<Type, Args, Payload, State>;
@@ -89,6 +91,7 @@ export declare const typePendingReducerSet: {
     };
 };
 export declare function isPending<Type = string>(type: Type, state: any): boolean;
+export declare function callingCount<Type = string>(type: Type, state: any): number;
 export declare function createTypeReduxInitialState(): TypeReduxPendingState;
 export declare function isError<Type, Args, Payload>(action: TypeResolveAction<Type, Args, Payload> | TypeRejectAction<Type, Args>): action is TypeRejectAction<Type, Args>;
 export declare function isTypeAsyncAction<Type, Args, Payload, State>(action: any): action is TypeAsyncAction<Type, Args, Payload, State>;

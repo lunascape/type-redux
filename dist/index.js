@@ -173,6 +173,13 @@ function isPending(type, state) {
     return !!(state[REDUX_TYPE].pendings && state[REDUX_TYPE].pendings[type]);
 }
 exports.isPending = isPending;
+function callingCount(type, state) {
+    if (state[REDUX_TYPE].pendings) {
+        return state[REDUX_TYPE].pendings[type] || 0;
+    }
+    return 0;
+}
+exports.callingCount = callingCount;
 function createTypeReduxInitialState() {
     var _a;
     return _a = {},
