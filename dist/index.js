@@ -4,6 +4,8 @@ var tslib_1 = require("tslib");
 var _a;
 var REDUX_TYPE = '@@redux-type';
 exports.PENDING_TYPE = '@@redux-type/PENDING';
+exports.SKIP_REQUEST = '@@redux-type/SKIP_REQUEST';
+exports.SKIP_RESULT = '@@redux-type/SKIP_RESULT';
 var COMPLETE_TYPE = '@@redux-type/COMPLETE';
 function createTypeAction(type, payloadCreator) {
     var actionCreator = function (args) { return ({ type: type, payload: payloadCreator(args) }); };
@@ -16,7 +18,7 @@ function createTypeAction(type, payloadCreator) {
     return actionCreator;
 }
 exports.createTypeAction = createTypeAction;
-function createTypeAsyncAction(type, payloadCreator) {
+function createTypeAsyncAction(type, payloadCreator, controlOptions) {
     var actionCreator = function (args) {
         var resolve, reject;
         var promise = new Promise(function (res, rej) {
@@ -30,6 +32,7 @@ function createTypeAsyncAction(type, payloadCreator) {
             creator: payloadCreator,
             resolve: resolve,
             reject: reject,
+            controlOptions: controlOptions,
             stateful: false
         };
         return promise;
@@ -54,7 +57,7 @@ function createTypeAsyncAction(type, payloadCreator) {
     return actionCreator;
 }
 exports.createTypeAsyncAction = createTypeAsyncAction;
-function createTypeStatefulAction(type, payloadCreator) {
+function createTypeStatefulAction(type, payloadCreator, controlOptions) {
     var actionCreator = function (args) {
         var resolve, reject;
         var promise = new Promise(function (res, rej) {
@@ -68,6 +71,7 @@ function createTypeStatefulAction(type, payloadCreator) {
             creator: payloadCreator,
             resolve: resolve,
             reject: reject,
+            controlOptions: controlOptions,
             stateful: true
         };
         return promise;
@@ -115,36 +119,84 @@ function createTypeReducer(initialState) {
     };
 }
 exports.createTypeReducer = createTypeReducer;
-exports.typeReduxMiddleware = function (store) { return function (next) { return function (action) {
-    if (!isNeedCreatePayload(action)) {
-        return next(action);
-    }
-    var type = action.type, payload = action.payload, _a = action.meta, args = _a.args, resolve = _a.resolve, reject = _a.reject;
-    next({ type: type, payload: payload, meta: args });
-    try {
-        var promise = action.meta.stateful ?
-            action.meta.creator(args, store.dispatch, store.getState) :
-            action.meta.creator(args, store.getState());
-        promise.then(function (result) {
-            next({ type: payload, payload: result, meta: args });
-            next({ type: COMPLETE_TYPE, payload: payload });
-            resolve(result);
-        }, function (error) {
+exports.typeReduxMiddleware = function (store) {
+    var actionCache = {};
+    var resolveResult = function (key, type, promise) {
+        if (!key) {
+            return true;
+        }
+        if (type === 'leading') {
+            delete actionCache[key];
+            return true;
+        }
+        else if (actionCache[key] || actionCache[key].length) {
+            var index = actionCache[key].findIndex(function (p) { return p === promise; });
+            if (index === actionCache[key].length - 1) {
+                actionCache[key].splice(index, 1);
+                return true;
+            }
+            else {
+                actionCache[key].splice(index, 1);
+                return false;
+            }
+        }
+        else {
+            return true;
+        }
+    };
+    return function (next) { return function (action) {
+        if (!isNeedCreatePayload(action)) {
+            return next(action);
+        }
+        var type = action.type, payload = action.payload, _a = action.meta, args = _a.args, resolve = _a.resolve, reject = _a.reject, controlOptions = _a.controlOptions;
+        var key = controlOptions ? (controlOptions.includeParams ? type + "-" + JSON.stringify(args) : type) : undefined;
+        if (controlOptions && controlOptions.type === 'leading') {
+            if (actionCache[key] && actionCache[key].length) {
+                reject(exports.SKIP_REQUEST);
+                return action;
+            }
+        }
+        next({ type: type, payload: payload, meta: args });
+        try {
+            var promise_1 = action.meta.stateful ?
+                action.meta.creator(args, store.dispatch, store.getState) :
+                action.meta.creator(args, store.getState());
+            if (key) {
+                if (!actionCache[key]) {
+                    actionCache[key] = [];
+                }
+                actionCache[key].push(promise_1);
+            }
+            promise_1.then(function (result) {
+                if (key && !resolveResult(key, controlOptions.type, promise_1)) {
+                    return reject(exports.SKIP_RESULT);
+                }
+                next({ type: payload, payload: result, meta: args });
+                next({ type: COMPLETE_TYPE, payload: payload });
+                resolve(result);
+            }, function (error) {
+                if (key && !resolveResult(key, controlOptions.type, promise_1)) {
+                    return reject(exports.SKIP_RESULT);
+                }
+                next({ type: payload, payload: error, error: true, meta: args });
+                next({ type: COMPLETE_TYPE, payload: payload });
+                reject(error);
+            }).catch(function (err) {
+                if (key && !resolveResult(key, controlOptions.type, promise_1)) {
+                    return reject(exports.SKIP_RESULT);
+                }
+                next({ type: COMPLETE_TYPE, payload: payload });
+                reject(err);
+            });
+        }
+        catch (error) {
             next({ type: payload, payload: error, error: true, meta: args });
             next({ type: COMPLETE_TYPE, payload: payload });
             reject(error);
-        }).catch(function (err) {
-            next({ type: COMPLETE_TYPE, payload: payload });
-            reject(err);
-        });
-    }
-    catch (error) {
-        next({ type: payload, payload: error, error: true, meta: args });
-        next({ type: COMPLETE_TYPE, payload: payload });
-        reject(error);
-    }
-    return action;
-}; }; };
+        }
+        return action;
+    }; };
+};
 exports.typePendingReducerSet = (_a = {},
     _a[REDUX_TYPE] = function (state, action) {
         if (state === void 0) { state = { pendings: {} }; }

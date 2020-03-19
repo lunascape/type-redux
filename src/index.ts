@@ -7,12 +7,20 @@ import { Reducer, Middleware, AnyAction, Dispatch } from 'redux';
 
 const REDUX_TYPE = '@@redux-type';
 export const PENDING_TYPE = '@@redux-type/PENDING';
+export const SKIP_REQUEST = '@@redux-type/SKIP_REQUEST';
+export const SKIP_RESULT = '@@redux-type/SKIP_RESULT';
 const COMPLETE_TYPE = '@@redux-type/COMPLETE';
 
 export type TypeAction<Type, Payload> = {
   type: Type,
   payload: Payload,
 };
+
+type ActionControlType = 'leading' | 'trailing';
+export type ActionControlOption = {
+  type: ActionControlType;
+  includeParams?: boolean;
+}
 
 export interface TypeAsyncAction<Type, Args, Payload, State> extends Promise<Payload> {
   type: '@@redux-type/PENDING';
@@ -22,6 +30,7 @@ export interface TypeAsyncAction<Type, Args, Payload, State> extends Promise<Pay
     creator: (args: Args, state: State) => Promise<Payload>,
     resolve: (payload: Payload) => void,
     reject: (error: any) => void,
+    controlOptions?: ActionControlOption,
     stateful: false
   };
 }
@@ -34,6 +43,7 @@ export interface TypeStatefulAction<Type, Args, Payload, State> extends Promise<
     creator: (args: Args, dispatch: Dispatch<AnyAction>, getState: () => State) => Promise<Payload>,
     resolve: (payload: Payload) => void,
     reject: (error: any) => void,
+    controlOptions?: ActionControlOption,
     stateful: true
   };
 }
@@ -100,6 +110,7 @@ export function createTypeAction<Type extends string, Args, Payload = Args>(
 export function createTypeAsyncAction<Type extends string, Args, Payload, State>(
   type: Type,
   payloadCreator: (args: Args, state: State) => Promise<Payload>,
+  controlOptions?: ActionControlOption
 ): TypeAsyncActionCreator<Type, Args, Payload, State> {
   const actionCreator: any = (args: Args): TypeAsyncAction<Type, Args, Payload, State> => {
     let resolve, reject;
@@ -114,6 +125,7 @@ export function createTypeAsyncAction<Type extends string, Args, Payload, State>
       creator: payloadCreator,
       resolve,
       reject,
+      controlOptions,
       stateful: false
     };
     return promise;
@@ -141,6 +153,7 @@ export function createTypeAsyncAction<Type extends string, Args, Payload, State>
 export function createTypeStatefulAction<Type extends string, Args, Payload, State>(
   type: Type,
   payloadCreator: (args: Args, dispatch: Dispatch<AnyAction>, getState: () => State) => Promise<Payload>,
+  controlOptions?: ActionControlOption
 ): TypeStatefulActionCreator<Type, Args, Payload, State> {
   const actionCreator: any = (args: Args): TypeStatefulAction<Type, Args, Payload, State> => {
     let resolve, reject;
@@ -155,6 +168,7 @@ export function createTypeStatefulAction<Type extends string, Args, Payload, Sta
       creator: payloadCreator,
       resolve,
       reject,
+      controlOptions,
       stateful: true
     };
     return promise;
@@ -205,38 +219,86 @@ export function createTypeReducer<State>(
   };
 }
 
-export const typeReduxMiddleware: Middleware = (store) => (next) => (action) => {
-  if (!isNeedCreatePayload(action)) {
-    return next(action);
+export const typeReduxMiddleware: Middleware = (store) => {
+  const actionCache: {[action_key: string]: Promise<any>[]} = {};
+  const resolveResult = (key: string, type: ActionControlType, promise: Promise<any>) => {
+    if (!key) {
+      return true;
+    }
+    if (type === 'leading') {
+      delete actionCache[key];
+      return true;
+    } else if (actionCache[key] || actionCache[key].length) {
+      const index = actionCache[key].findIndex(p => p === promise);
+      if (index === actionCache[key].length - 1) {
+        actionCache[key].splice(index, 1);
+        return true;
+      } else {
+        actionCache[key].splice(index, 1);
+        return false;
+      }
+    } else {
+      return true;
+    }
   }
-  const { type, payload, meta: {
-    args,
-    resolve,
-    reject,
-  } } = action;
-  next({ type, payload, meta: args });
-  try {
-    const promise = action.meta.stateful ?
-      action.meta.creator(args, store.dispatch, store.getState) :
-      action.meta.creator(args, store.getState());
-    promise.then((result: any) => {
-      next({ type: payload, payload: result, meta: args });
-      next({ type: COMPLETE_TYPE, payload });
-      resolve(result);
-    }, (error: any) => {
+  return (next) => (action) => {
+    if (!isNeedCreatePayload(action)) {
+      return next(action);
+    }
+    const { type, payload, meta: {
+      args,
+      resolve,
+      reject,
+      controlOptions,
+    } } = action;
+
+    const key = controlOptions ? (controlOptions.includeParams ? `${type}-${JSON.stringify(args)}` : type) : undefined;
+    if (controlOptions && controlOptions.type === 'leading') {
+      if (actionCache[key!] && actionCache[key!].length) {
+        reject(SKIP_REQUEST);
+        return action;
+      }
+    }
+
+    next({ type, payload, meta: args });
+    try {
+      const promise = action.meta.stateful ?
+        action.meta.creator(args, store.dispatch, store.getState) :
+        action.meta.creator(args, store.getState());
+      if (key) {
+        if (!actionCache[key]) {
+          actionCache[key] = [];
+        }
+        actionCache[key].push(promise);
+      }
+      promise.then((result: any) => {
+        if (key && !resolveResult(key, controlOptions!.type, promise)) {
+          return reject(SKIP_RESULT);
+        }
+        next({ type: payload, payload: result, meta: args });
+        next({ type: COMPLETE_TYPE, payload });
+        resolve(result);
+      }, (error: any) => {
+        if (key && !resolveResult(key, controlOptions!.type, promise)) {
+          return reject(SKIP_RESULT);
+        }
+        next({ type: payload, payload: error, error: true, meta: args });
+        next({ type: COMPLETE_TYPE, payload });
+        reject(error);
+      }).catch((err) => {
+        if (key && !resolveResult(key, controlOptions!.type, promise)) {
+          return reject(SKIP_RESULT);
+        }
+        next({ type: COMPLETE_TYPE, payload });
+        reject(err);
+      });
+    } catch (error) {
       next({ type: payload, payload: error, error: true, meta: args });
       next({ type: COMPLETE_TYPE, payload });
       reject(error);
-    }).catch((err) => {
-      next({ type: COMPLETE_TYPE, payload });
-      reject(err);
-    });
-  } catch (error) {
-    next({ type: payload, payload: error, error: true, meta: args });
-    next({ type: COMPLETE_TYPE, payload });
-    reject(error);
+    }
+    return action;
   }
-  return action;
 };
 
 export interface TypeReduxPendingState {

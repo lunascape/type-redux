@@ -1,9 +1,16 @@
 import { Reducer, Middleware, AnyAction, Dispatch } from 'redux';
 declare const REDUX_TYPE = "@@redux-type";
 export declare const PENDING_TYPE = "@@redux-type/PENDING";
+export declare const SKIP_REQUEST = "@@redux-type/SKIP_REQUEST";
+export declare const SKIP_RESULT = "@@redux-type/SKIP_RESULT";
 export declare type TypeAction<Type, Payload> = {
     type: Type;
     payload: Payload;
+};
+declare type ActionControlType = 'leading' | 'trailing';
+export declare type ActionControlOption = {
+    type: ActionControlType;
+    includeParams?: boolean;
 };
 export interface TypeAsyncAction<Type, Args, Payload, State> extends Promise<Payload> {
     type: '@@redux-type/PENDING';
@@ -13,6 +20,7 @@ export interface TypeAsyncAction<Type, Args, Payload, State> extends Promise<Pay
         creator: (args: Args, state: State) => Promise<Payload>;
         resolve: (payload: Payload) => void;
         reject: (error: any) => void;
+        controlOptions?: ActionControlOption;
         stateful: false;
     };
 }
@@ -24,6 +32,7 @@ export interface TypeStatefulAction<Type, Args, Payload, State> extends Promise<
         creator: (args: Args, dispatch: Dispatch<AnyAction>, getState: () => State) => Promise<Payload>;
         resolve: (payload: Payload) => void;
         reject: (error: any) => void;
+        controlOptions?: ActionControlOption;
         stateful: true;
     };
 }
@@ -66,8 +75,8 @@ export interface TypeStatefulActionCreator<Type, Args, Payload, State> {
     isPending<State>(state: State): boolean;
 }
 export declare function createTypeAction<Type extends string, Args, Payload = Args>(type: Type, payloadCreator: (args: Args) => Payload): TypeActionCreator<Type, Args, Payload>;
-export declare function createTypeAsyncAction<Type extends string, Args, Payload, State>(type: Type, payloadCreator: (args: Args, state: State) => Promise<Payload>): TypeAsyncActionCreator<Type, Args, Payload, State>;
-export declare function createTypeStatefulAction<Type extends string, Args, Payload, State>(type: Type, payloadCreator: (args: Args, dispatch: Dispatch<AnyAction>, getState: () => State) => Promise<Payload>): TypeStatefulActionCreator<Type, Args, Payload, State>;
+export declare function createTypeAsyncAction<Type extends string, Args, Payload, State>(type: Type, payloadCreator: (args: Args, state: State) => Promise<Payload>, controlOptions?: ActionControlOption): TypeAsyncActionCreator<Type, Args, Payload, State>;
+export declare function createTypeStatefulAction<Type extends string, Args, Payload, State>(type: Type, payloadCreator: (args: Args, dispatch: Dispatch<AnyAction>, getState: () => State) => Promise<Payload>, controlOptions?: ActionControlOption): TypeStatefulActionCreator<Type, Args, Payload, State>;
 export declare function createTypeReducer<State>(initialState: State | (() => State), ...handlers: TypePartialReducer<string, any, State>[]): TypeReducer<State>;
 export declare const typeReduxMiddleware: Middleware;
 export interface TypeReduxPendingState {
